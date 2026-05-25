@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { LogOut, BarChart3, Package, AlertCircle, CheckCircle, Plus, Minus, X, Loader2, Inbox, Beaker, Trash2, Zap, TrendingUp, TrendingDown, AlertTriangle, Pencil, Save, History, Filter } from 'lucide-react';
+import { LogOut, BarChart3, Package, AlertCircle, CheckCircle, Plus, Minus, X, Loader2, Inbox, Beaker, Trash2, Zap, TrendingUp, TrendingDown, AlertTriangle, Pencil, Save, History, Filter, Download } from 'lucide-react';
 import { useDatabase } from '../hooks/useDatabase';
 import { useAuth } from '../context/AuthContext';
+import { exportToExcel, formatDateForExcel } from '../utils/exportToExcel';
 
 const QUICK_PARAMS = [
   { parameter: 'Mooney Viscosity', specification: '45-55' },
@@ -127,6 +128,54 @@ export default function DashboardPage({ user, onLogout }) {
     });
   };
 
+ // ========== Export Functions ==========
+  const exportProductionLots = () => {
+    const data = productionLots.map((lot) => ({
+      'Lot Number': lot.lot_number,
+      'Product': lot.product_id,
+      'Product Type': lot.product_type_id,
+      'Quantity (kg)': lot.quantity,
+      'Status': lot.status,
+      'Mfg Date': lot.mfg_date,
+      'Exp Date': lot.exp_date,
+      'Operator': lot.operator_name || '-',
+      'QC Notes': lot.qc_notes || '-',
+      'Created': formatDateForExcel(lot.created_at),
+    }));
+    exportToExcel(data, 'production-lots', 'Production Lots');
+  };
+
+  const exportMaterials = () => {
+    const data = rawMaterials.map((mat) => ({
+      'Material ID': mat.id,
+      'Name': mat.name,
+      'Stock': mat.stock,
+      'Unit': mat.unit,
+      'Reorder Point': mat.reorder_point || 0,
+      'Pack Size': mat.pack_size || '-',
+      'Status': Number(mat.stock) < 0 ? 'NEGATIVE' 
+               : Number(mat.stock) <= Number(mat.reorder_point || 0) ? 'LOW' 
+               : 'OK',
+      'Description': mat.description || '-',
+    }));
+    exportToExcel(data, 'raw-materials', 'Raw Materials');
+  };
+
+  const exportHistory = () => {
+    const data = filteredMovements.map((mv) => ({
+      'Date/Time': formatDateForExcel(mv.created_at),
+      'Movement #': mv.movement_number,
+      'Material ID': mv.raw_material_id,
+      'Material Name': getMaterialName(mv.raw_material_id),
+      'Type': mv.movement_type === 'in' ? 'IN' : 'OUT',
+      'Quantity': mv.movement_type === 'in' ? `+${mv.quantity}` : `-${mv.quantity}`,
+      'Balance After': mv.balance_after,
+      'Reference': mv.reference_number || '-',
+      'Recorded By': mv.recorded_by_name || '-',
+    }));
+    exportToExcel(data, 'stock-movements-history', 'Stock History');
+  }; 
+
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
@@ -204,10 +253,16 @@ export default function DashboardPage({ user, onLogout }) {
           <div>
             <div className="section-header">
               <h2>Production Lots</h2>
-              <button className="primary-button" onClick={() => setShowLotForm(true)}>
-                <Plus size={18} />
-                New Lot
-              </button>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="secondary-button" onClick={exportProductionLots} disabled={productionLots.length === 0}>
+                  <Download size={18} />
+                  Export Excel
+                </button>
+                <button className="primary-button" onClick={() => setShowLotForm(true)}>
+                  <Plus size={18} />
+                  New Lot
+                </button>
+              </div>
             </div>
 
             {productionLots.length === 0 ? (
