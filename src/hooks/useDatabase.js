@@ -171,6 +171,15 @@ export function useDatabase() {
     return { data, error };
   }, []);
 
+ // Delete Production Lot (Phase 6)
+  const deleteProductionLot = useCallback(async (id) => {
+    const { data, error } = await supabase
+      .from('production_lots')
+      .delete()
+      .eq('id', id);
+    return { data, error };
+  }, []); 
+
   return {
     getRawMaterials,
     createRawMaterial,
@@ -192,6 +201,7 @@ export function useDatabase() {
     getQCTestResults,
     createQCTestResult,
     updateQCTestResult,
-        updateRawMaterialStock
+        updateRawMaterialStock,
+        deleteProductionLot
   };
 }

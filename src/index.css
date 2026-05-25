@@ -1432,3 +1432,77 @@ body {
     gap: 0.75rem;
   }
 }
+
+/* ============================================
+   PHASE 6 STYLES - Edit/Delete Buttons
+   ============================================ */
+
+/* Edit Button (สีฟ้า) */
+.edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 1px solid #93c5fd;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.edit-btn:hover {
+  background: #bfdbfe;
+  border-color: #60a5fa;
+  transform: translateY(-1px);
+}
+
+/* Delete Button (สีแดง) */
+.delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.delete-btn:hover {
+  background: #fecaca;
+  border-color: #f87171;
+  transform: translateY(-1px);
+}
+
+/* Danger Button (ใน Confirm Dialog) */
+.primary-button.danger-btn {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.3);
+}
+
+.primary-button.danger-btn:hover:not(:disabled) {
+  box-shadow: 0 4px 8px rgba(220, 38, 38, 0.4);
+}
+
+/* Modal Small (สำหรับ Confirm Dialog) */
+.modal-small {
+  max-width: 450px;
+}
+
+/* Responsive: smaller screens */
+@media (max-width: 768px) {
+  .edit-btn,
+  .delete-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
