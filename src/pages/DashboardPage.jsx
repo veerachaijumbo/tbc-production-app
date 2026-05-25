@@ -316,6 +316,10 @@ export default function DashboardPage({ user, onLogout }) {
           <div>
             <div className="section-header">
               <h2>Raw Materials Stock</h2>
+              <button className="secondary-button" onClick={exportMaterials} disabled={rawMaterials.length === 0}>
+                <Download size={18} />
+                Export Excel
+              </button>
               <div className="materials-summary">
                 <span>Total: <strong>{rawMaterials.length}</strong></span>
                 {lowStockMaterials.length > 0 && (
@@ -426,6 +430,10 @@ export default function DashboardPage({ user, onLogout }) {
                 <History size={24} style={{ display: 'inline', marginRight: '0.5rem', verticalAlign: 'middle' }} />
                 Stock Movement History
               </h2>
+              <button className="secondary-button" onClick={exportHistory} disabled={filteredMovements.length === 0}>
+                <Download size={18} />
+                Export Excel
+              </button>
               <div className="materials-summary">
                 <span>Total: <strong>{filteredMovements.length}</strong> records</span>
               </div>
