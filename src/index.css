@@ -1506,3 +1506,164 @@ body {
     justify-content: center;
   }
 }
+
+/* ============================================
+   PHASE 7 STYLES - Stock History
+   ============================================ */
+
+/* Filter Bar */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  align-items: flex-end;
+  background: white;
+  padding: 1rem 1.25rem;
+  border-radius: 12px;
+  margin-bottom: 1rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  border: 1px solid #e5e7eb;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.filter-group label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.filter-group select {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: white;
+  min-width: 220px;
+  cursor: pointer;
+}
+
+.filter-group select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Filter Buttons */
+.filter-buttons {
+  display: flex;
+  gap: 0.375rem;
+}
+
+.filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  background: white;
+  color: #6b7280;
+  border: 1px solid #d1d5db;
+  padding: 0.5rem 0.875rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.filter-btn:hover {
+  background: #f3f4f6;
+  color: #1f2937;
+}
+
+.filter-btn.active {
+  background: #1f2937;
+  color: white;
+  border-color: #1f2937;
+}
+
+.filter-btn.filter-in.active {
+  background: #10b981;
+  border-color: #10b981;
+}
+
+.filter-btn.filter-out.active {
+  background: #f59e0b;
+  border-color: #f59e0b;
+}
+
+/* Movement Type Tags */
+.movement-type-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.movement-type-tag.in {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.movement-type-tag.out {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* Quantity Colors */
+.qty-in {
+  color: #059669;
+  font-weight: 700;
+}
+
+.qty-out {
+  color: #d97706;
+  font-weight: 700;
+}
+
+/* Material Cell (2 lines) */
+.material-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.material-name-small {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .filter-group select {
+    min-width: 100%;
+    width: 100%;
+  }
+  
+  .filter-buttons {
+    flex-wrap: wrap;
+  }
+  
+  .filter-btn {
+    flex: 1;
+    justify-content: center;
+  }
+}

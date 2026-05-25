@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogOut, BarChart3, Package, AlertCircle, CheckCircle, Plus, Minus, X, Loader2, Inbox, Beaker, Trash2, Zap, TrendingUp, TrendingDown, AlertTriangle, Pencil, Save } from 'lucide-react';
+import { LogOut, BarChart3, Package, AlertCircle, CheckCircle, Plus, Minus, X, Loader2, Inbox, Beaker, Trash2, Zap, TrendingUp, TrendingDown, AlertTriangle, Pencil, Save, History, Filter } from 'lucide-react';
 import { useDatabase } from '../hooks/useDatabase';
 import { useAuth } from '../context/AuthContext';
 
@@ -28,9 +28,14 @@ export default function DashboardPage({ user, onLogout }) {
   const [productionLots, setProductionLots] = useState([]);
   const [rawMaterials, setRawMaterials] = useState([]);
   const [finishedProducts, setFinishedProducts] = useState([]);
+  const [stockMovements, setStockMovements] = useState([]);  // Phase 7
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Phase 7: History filters
+  const [historyFilterMaterial, setHistoryFilterMaterial] = useState('all');
+  const [historyFilterType, setHistoryFilterType] = useState('all');
 
   const db = useDatabase();
   const { user: authUser } = useAuth();
@@ -39,15 +44,17 @@ export default function DashboardPage({ user, onLogout }) {
     setLoading(true);
     setError('');
     try {
-      const [lots, materials, products] = await Promise.all([
+      const [lots, materials, products, movements] = await Promise.all([
         db.getProductionLots(),
         db.getRawMaterials(),
         db.getFinishedProducts(),
+        db.getStockMovements(),  // Phase 7
       ]);
 
       if (lots.data) setProductionLots(lots.data);
       if (materials.data) setRawMaterials(materials.data);
       if (products.data) setFinishedProducts(products.data);
+      if (movements.data) setStockMovements(movements.data);
     } catch (err) {
       setError('Failed to load data: ' + err.message);
       console.error(err);
@@ -60,44 +67,18 @@ export default function DashboardPage({ user, onLogout }) {
     loadData();
   }, []);
 
-  const openQCForm = (lot) => {
-    setSelectedLot(lot);
-    setShowQCForm(true);
-  };
-
-  const openStockForm = (material, type) => {
-    setSelectedMaterial(material);
-    setStockMovementType(type);
-    setShowStockForm(true);
-  };
-
-  // Phase 6: Edit/Delete handlers
-  const openEditLotForm = (lot) => {
-    setSelectedLot(lot);
-    setShowEditLotForm(true);
-  };
-
-  const openEditMaterialForm = (material) => {
-    setSelectedMaterial(material);
-    setShowEditMaterialForm(true);
-  };
-
-  const requestDeleteLot = (lot) => {
-    setLotToDelete(lot);
-    setShowConfirmDialog(true);
-  };
+  const openQCForm = (lot) => { setSelectedLot(lot); setShowQCForm(true); };
+  const openStockForm = (material, type) => { setSelectedMaterial(material); setStockMovementType(type); setShowStockForm(true); };
+  const openEditLotForm = (lot) => { setSelectedLot(lot); setShowEditLotForm(true); };
+  const openEditMaterialForm = (material) => { setSelectedMaterial(material); setShowEditMaterialForm(true); };
+  const requestDeleteLot = (lot) => { setLotToDelete(lot); setShowConfirmDialog(true); };
 
   const confirmDeleteLot = async () => {
     if (!lotToDelete) return;
     try {
       const { error } = await db.deleteProductionLot(lotToDelete.id);
-      if (error) {
-        setError('Failed to delete: ' + error.message);
-      } else {
-        setShowConfirmDialog(false);
-        setLotToDelete(null);
-        loadData();
-      }
+      if (error) setError('Failed to delete: ' + error.message);
+      else { setShowConfirmDialog(false); setLotToDelete(null); loadData(); }
     } catch (err) {
       setError('Error: ' + err.message);
     }
@@ -107,6 +88,13 @@ export default function DashboardPage({ user, onLogout }) {
   const releasedLots = productionLots.filter(l => l.status === 'released');
   const archivedLots = productionLots.filter(l => l.status === 'archived');
   const lowStockMaterials = rawMaterials.filter(m => Number(m.stock) <= Number(m.reorder_point || 0));
+
+  // Phase 7: Filtered history
+  const filteredMovements = stockMovements.filter(m => {
+    if (historyFilterMaterial !== 'all' && m.raw_material_id !== historyFilterMaterial) return false;
+    if (historyFilterType !== 'all' && m.movement_type !== historyFilterType) return false;
+    return true;
+  });
 
   const stats = [
     { label: 'Production Lots', value: productionLots.length, color: '#3b82f6' },
@@ -123,12 +111,28 @@ export default function DashboardPage({ user, onLogout }) {
     return '';
   };
 
+  // Phase 7: Get material name from ID
+  const getMaterialName = (id) => {
+    const mat = rawMaterials.find(m => m.id === id);
+    return mat ? mat.name : id;
+  };
+
+  // Phase 7: Format date
+  const formatDateTime = (isoString) => {
+    if (!isoString) return '-';
+    const d = new Date(isoString);
+    return d.toLocaleString('th-TH', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit'
+    });
+  };
+
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
         <div className="header-left">
           <h1>TBC Production Manager</h1>
-          <p>Production Management System v6.0.0</p>
+          <p>Production Management System v7.0.0</p>
         </div>
         <div className="header-right">
           <div className="user-info">
@@ -143,7 +147,7 @@ export default function DashboardPage({ user, onLogout }) {
       </header>
 
       <nav className="dashboard-nav">
-        {['overview', 'production', 'materials', 'qc'].map((tab) => (
+        {['overview', 'production', 'materials', 'qc', 'history'].map((tab) => (
           <button
             key={tab}
             className={`nav-button ${activeTab === tab ? 'active' : ''}`}
@@ -212,8 +216,7 @@ export default function DashboardPage({ user, onLogout }) {
                 <h3>No Production Lots Yet</h3>
                 <p>Create your first production lot to get started</p>
                 <button className="primary-button" onClick={() => setShowLotForm(true)}>
-                  <Plus size={18} />
-                  Create First Lot
+                  <Plus size={18} />Create First Lot
                 </button>
               </div>
             ) : (
@@ -236,21 +239,13 @@ export default function DashboardPage({ user, onLogout }) {
                         <td className="font-bold">{lot.lot_number}</td>
                         <td>{lot.product_id}</td>
                         <td>{lot.quantity} kg</td>
-                        <td>
-                          <span className={`status-badge status-${lot.status}`}>
-                            {lot.status}
-                          </span>
-                        </td>
+                        <td><span className={`status-badge status-${lot.status}`}>{lot.status}</span></td>
                         <td>{lot.mfg_date}</td>
                         <td>{lot.exp_date}</td>
                         <td>
                           <div className="action-buttons">
-                            <button className="edit-btn" onClick={() => openEditLotForm(lot)} title="Edit">
-                              <Pencil size={14} />
-                            </button>
-                            <button className="delete-btn" onClick={() => requestDeleteLot(lot)} title="Delete">
-                              <Trash2 size={14} />
-                            </button>
+                            <button className="edit-btn" onClick={() => openEditLotForm(lot)} title="Edit"><Pencil size={14} /></button>
+                            <button className="delete-btn" onClick={() => requestDeleteLot(lot)} title="Delete"><Trash2 size={14} /></button>
                           </div>
                         </td>
                       </tr>
@@ -302,7 +297,6 @@ export default function DashboardPage({ user, onLogout }) {
                       const reorder = Number(mat.reorder_point || 0);
                       const isLow = stock <= reorder;
                       const isNegative = stock < 0;
-                      
                       return (
                         <tr key={mat.id} className={getStockClass(mat)}>
                           <td className="font-bold">{mat.id}</td>
@@ -311,27 +305,15 @@ export default function DashboardPage({ user, onLogout }) {
                           <td>{mat.unit}</td>
                           <td>{reorder}</td>
                           <td>
-                            {isNegative ? (
-                              <span className="status-badge status-archived">NEGATIVE</span>
-                            ) : isLow ? (
-                              <span className="status-badge status-draft">LOW</span>
-                            ) : (
-                              <span className="status-badge status-released">OK</span>
-                            )}
+                            {isNegative ? <span className="status-badge status-archived">NEGATIVE</span>
+                             : isLow ? <span className="status-badge status-draft">LOW</span>
+                             : <span className="status-badge status-released">OK</span>}
                           </td>
                           <td>
                             <div className="action-buttons">
-                              <button className="stock-in-btn" onClick={() => openStockForm(mat, 'in')}>
-                                <Plus size={14} />
-                                In
-                              </button>
-                              <button className="stock-out-btn" onClick={() => openStockForm(mat, 'out')}>
-                                <Minus size={14} />
-                                Out
-                              </button>
-                              <button className="edit-btn" onClick={() => openEditMaterialForm(mat)} title="Edit">
-                                <Pencil size={14} />
-                              </button>
+                              <button className="stock-in-btn" onClick={() => openStockForm(mat, 'in')}><Plus size={14} />In</button>
+                              <button className="stock-out-btn" onClick={() => openStockForm(mat, 'out')}><Minus size={14} />Out</button>
+                              <button className="edit-btn" onClick={() => openEditMaterialForm(mat)} title="Edit"><Pencil size={14} /></button>
                             </div>
                           </td>
                         </tr>
@@ -347,64 +329,139 @@ export default function DashboardPage({ user, onLogout }) {
         {!loading && activeTab === 'qc' && (
           <div>
             <h2>Quality Control</h2>
-            
             <div className="qc-info">
-              <div className="qc-card pending">
-                <AlertCircle size={32} />
-                <h3>Pending Tests</h3>
-                <p className="qc-number">{draftLots.length}</p>
-              </div>
-              <div className="qc-card passed">
-                <CheckCircle size={32} />
-                <h3>Released</h3>
-                <p className="qc-number">{releasedLots.length}</p>
-              </div>
-              <div className="qc-card archived">
-                <X size={32} />
-                <h3>Archived</h3>
-                <p className="qc-number">{archivedLots.length}</p>
-              </div>
+              <div className="qc-card pending"><AlertCircle size={32} /><h3>Pending Tests</h3><p className="qc-number">{draftLots.length}</p></div>
+              <div className="qc-card passed"><CheckCircle size={32} /><h3>Released</h3><p className="qc-number">{releasedLots.length}</p></div>
+              <div className="qc-card archived"><X size={32} /><h3>Archived</h3><p className="qc-number">{archivedLots.length}</p></div>
             </div>
-
             <div className="section-header" style={{ marginTop: '2rem' }}>
               <h3>Lots Awaiting QC Testing</h3>
             </div>
-
             {draftLots.length === 0 ? (
-              <div className="empty-state">
-                <CheckCircle size={48} />
-                <h3>All caught up!</h3>
-                <p>No lots are waiting for QC testing</p>
-              </div>
+              <div className="empty-state"><CheckCircle size={48} /><h3>All caught up!</h3><p>No lots are waiting for QC testing</p></div>
             ) : (
               <div className="table-container">
                 <table className="data-table">
                   <thead>
-                    <tr>
-                      <th>Lot Number</th>
-                      <th>Product</th>
-                      <th>Type</th>
-                      <th>Quantity</th>
-                      <th>Mfg Date</th>
-                      <th>Action</th>
-                    </tr>
+                    <tr><th>Lot Number</th><th>Product</th><th>Type</th><th>Quantity</th><th>Mfg Date</th><th>Action</th></tr>
                   </thead>
                   <tbody>
                     {draftLots.map((lot) => (
                       <tr key={lot.id}>
                         <td className="font-bold">{lot.lot_number}</td>
                         <td>{lot.product_id}</td>
-                        <td>
-                          <span className="product-type-tag">{lot.product_type_id}</span>
-                        </td>
+                        <td><span className="product-type-tag">{lot.product_type_id}</span></td>
                         <td>{lot.quantity} kg</td>
                         <td>{lot.mfg_date}</td>
+                        <td><button className="test-button" onClick={() => openQCForm(lot)}><Beaker size={16} />Test</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Phase 7: History Tab */}
+        {!loading && activeTab === 'history' && (
+          <div>
+            <div className="section-header">
+              <h2>
+                <History size={24} style={{ display: 'inline', marginRight: '0.5rem', verticalAlign: 'middle' }} />
+                Stock Movement History
+              </h2>
+              <div className="materials-summary">
+                <span>Total: <strong>{filteredMovements.length}</strong> records</span>
+              </div>
+            </div>
+
+            {/* Filters */}
+            <div className="filter-bar">
+              <div className="filter-group">
+                <label><Filter size={14} /> Material:</label>
+                <select value={historyFilterMaterial} onChange={(e) => setHistoryFilterMaterial(e.target.value)}>
+                  <option value="all">All Materials</option>
+                  {rawMaterials.map((mat) => (
+                    <option key={mat.id} value={mat.id}>{mat.id} - {mat.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label>Type:</label>
+                <div className="filter-buttons">
+                  <button
+                    className={`filter-btn ${historyFilterType === 'all' ? 'active' : ''}`}
+                    onClick={() => setHistoryFilterType('all')}
+                  >All</button>
+                  <button
+                    className={`filter-btn filter-in ${historyFilterType === 'in' ? 'active' : ''}`}
+                    onClick={() => setHistoryFilterType('in')}
+                  ><TrendingUp size={14} /> In</button>
+                  <button
+                    className={`filter-btn filter-out ${historyFilterType === 'out' ? 'active' : ''}`}
+                    onClick={() => setHistoryFilterType('out')}
+                  ><TrendingDown size={14} /> Out</button>
+                </div>
+              </div>
+
+              {(historyFilterMaterial !== 'all' || historyFilterType !== 'all') && (
+                <button
+                  className="secondary-button"
+                  onClick={() => { setHistoryFilterMaterial('all'); setHistoryFilterType('all'); }}
+                >
+                  <X size={14} />
+                  Clear Filters
+                </button>
+              )}
+            </div>
+
+            {filteredMovements.length === 0 ? (
+              <div className="empty-state">
+                <History size={48} />
+                <h3>No Movement Records</h3>
+                <p>{stockMovements.length === 0 ? 'No stock movements yet' : 'No records match the current filters'}</p>
+              </div>
+            ) : (
+              <div className="table-container">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Date/Time</th>
+                      <th>Movement #</th>
+                      <th>Material</th>
+                      <th>Type</th>
+                      <th>Quantity</th>
+                      <th>Balance After</th>
+                      <th>Reference</th>
+                      <th>Recorded By</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredMovements.map((mv) => (
+                      <tr key={mv.id}>
+                        <td>{formatDateTime(mv.created_at)}</td>
+                        <td className="font-bold">{mv.movement_number}</td>
                         <td>
-                          <button className="test-button" onClick={() => openQCForm(lot)}>
-                            <Beaker size={16} />
-                            Test
-                          </button>
+                          <div className="material-cell">
+                            <strong>{mv.raw_material_id}</strong>
+                            <span className="material-name-small">{getMaterialName(mv.raw_material_id)}</span>
+                          </div>
                         </td>
+                        <td>
+                          {mv.movement_type === 'in' ? (
+                            <span className="movement-type-tag in"><TrendingUp size={12} /> IN</span>
+                          ) : (
+                            <span className="movement-type-tag out"><TrendingDown size={12} /> OUT</span>
+                          )}
+                        </td>
+                        <td className={mv.movement_type === 'in' ? 'qty-in' : 'qty-out'}>
+                          {mv.movement_type === 'in' ? '+' : '-'}{mv.quantity}
+                        </td>
+                        <td className="font-bold">{mv.balance_after}</td>
+                        <td>{mv.reference_number || '-'}</td>
+                        <td>{mv.recorded_by_name || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -420,100 +477,65 @@ export default function DashboardPage({ user, onLogout }) {
       </footer>
 
       {showLotForm && (
-        <ProductionLotForm
-          products={finishedProducts}
-          authUser={authUser}
+        <ProductionLotForm products={finishedProducts} authUser={authUser}
           onClose={() => setShowLotForm(false)}
           onSuccess={() => { setShowLotForm(false); loadData(); }}
-          createLot={db.createProductionLot}
-        />
+          createLot={db.createProductionLot} />
       )}
 
       {showQCForm && selectedLot && (
-        <QCTestForm
-          lot={selectedLot}
-          authUser={authUser}
-          createTest={db.createQCTestResult}
-          updateLot={db.updateProductionLot}
+        <QCTestForm lot={selectedLot} authUser={authUser}
+          createTest={db.createQCTestResult} updateLot={db.updateProductionLot}
           onClose={() => { setShowQCForm(false); setSelectedLot(null); }}
-          onSuccess={() => { setShowQCForm(false); setSelectedLot(null); loadData(); }}
-        />
+          onSuccess={() => { setShowQCForm(false); setSelectedLot(null); loadData(); }} />
       )}
 
       {showStockForm && selectedMaterial && (
-        <StockMovementForm
-          material={selectedMaterial}
-          movementType={stockMovementType}
-          authUser={authUser}
-          createMovement={db.createStockMovement}
-          updateStock={db.updateRawMaterialStock}
+        <StockMovementForm material={selectedMaterial} movementType={stockMovementType} authUser={authUser}
+          createMovement={db.createStockMovement} updateStock={db.updateRawMaterialStock}
           onClose={() => { setShowStockForm(false); setSelectedMaterial(null); }}
-          onSuccess={() => { setShowStockForm(false); setSelectedMaterial(null); loadData(); }}
-        />
+          onSuccess={() => { setShowStockForm(false); setSelectedMaterial(null); loadData(); }} />
       )}
 
-      {/* Phase 6: Edit Lot Modal */}
       {showEditLotForm && selectedLot && (
-        <EditLotForm
-          lot={selectedLot}
-          products={finishedProducts}
-          updateLot={db.updateProductionLot}
+        <EditLotForm lot={selectedLot} products={finishedProducts} updateLot={db.updateProductionLot}
           onClose={() => { setShowEditLotForm(false); setSelectedLot(null); }}
-          onSuccess={() => { setShowEditLotForm(false); setSelectedLot(null); loadData(); }}
-        />
+          onSuccess={() => { setShowEditLotForm(false); setSelectedLot(null); loadData(); }} />
       )}
 
-      {/* Phase 6: Edit Material Modal */}
       {showEditMaterialForm && selectedMaterial && (
-        <EditMaterialForm
-          material={selectedMaterial}
-          updateMaterial={db.updateRawMaterial}
+        <EditMaterialForm material={selectedMaterial} updateMaterial={db.updateRawMaterial}
           onClose={() => { setShowEditMaterialForm(false); setSelectedMaterial(null); }}
-          onSuccess={() => { setShowEditMaterialForm(false); setSelectedMaterial(null); loadData(); }}
-        />
+          onSuccess={() => { setShowEditMaterialForm(false); setSelectedMaterial(null); loadData(); }} />
       )}
 
-      {/* Phase 6: Confirm Delete Dialog */}
       {showConfirmDialog && lotToDelete && (
-        <ConfirmDialog
-          title="Delete Production Lot?"
+        <ConfirmDialog title="Delete Production Lot?"
           message={`Are you sure you want to delete lot "${lotToDelete.lot_number}"? This action cannot be undone.`}
-          confirmText="Yes, Delete"
-          cancelText="Cancel"
-          danger={true}
+          confirmText="Yes, Delete" cancelText="Cancel" danger={true}
           onConfirm={confirmDeleteLot}
-          onCancel={() => { setShowConfirmDialog(false); setLotToDelete(null); }}
-        />
+          onCancel={() => { setShowConfirmDialog(false); setLotToDelete(null); }} />
       )}
     </div>
   );
 }
 
 // ===================================================
-// Production Lot Form (Phase 2)
+// Production Lot Form
 // ===================================================
 function ProductionLotForm({ products, authUser, onClose, onSuccess, createLot }) {
   const today = new Date().toISOString().split('T')[0];
   const oneYearLater = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
   const generateLotNumber = () => {
     const now = new Date();
-    const date = now.toISOString().slice(0, 10).replace(/-/g, '');
-    const time = now.toTimeString().slice(0, 5).replace(':', '');
-    return `LOT-${date}-${time}`;
+    return `LOT-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${now.toTimeString().slice(0, 5).replace(':', '')}`;
   };
 
   const [formData, setFormData] = useState({
-    lot_number: generateLotNumber(),
-    product_id: products[0]?.id || '',
-    product_type_id: products[0]?.product_type_id || '',
-    quantity: 100,
-    mfg_date: today,
-    exp_date: oneYearLater,
-    status: 'draft',
-    qc_notes: '',
+    lot_number: generateLotNumber(), product_id: products[0]?.id || '',
+    product_type_id: products[0]?.product_type_id || '', quantity: 100,
+    mfg_date: today, exp_date: oneYearLater, status: 'draft', qc_notes: '',
   });
-
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -525,26 +547,16 @@ function ProductionLotForm({ products, authUser, onClose, onSuccess, createLot }
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-
     if (!formData.lot_number.trim()) { setError('Lot number is required'); return; }
     if (!formData.product_id) { setError('Please select a product'); return; }
     if (formData.quantity <= 0) { setError('Quantity must be greater than 0'); return; }
-
     setSubmitting(true);
     try {
       const payload = {
-        lot_number: formData.lot_number,
-        product_id: formData.product_id,
-        product_type_id: formData.product_type_id,
-        quantity: Number(formData.quantity),
-        mfg_date: formData.mfg_date,
-        exp_date: formData.exp_date,
-        status: formData.status,
-        qc_notes: formData.qc_notes || null,
-        operator_id: authUser?.id || null,
+        ...formData, quantity: Number(formData.quantity),
+        qc_notes: formData.qc_notes || null, operator_id: authUser?.id || null,
         operator_name: authUser?.user_metadata?.full_name || authUser?.email?.split('@')[0] || null,
       };
-
       const { error: insertError } = await createLot(payload);
       if (insertError) setError('Failed to create lot: ' + insertError.message);
       else onSuccess();
@@ -571,9 +583,7 @@ function ProductionLotForm({ products, authUser, onClose, onSuccess, createLot }
             <div className="form-group">
               <label>Status</label>
               <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} disabled={submitting}>
-                <option value="draft">Draft</option>
-                <option value="released">Released</option>
-                <option value="archived">Archived</option>
+                <option value="draft">Draft</option><option value="released">Released</option><option value="archived">Archived</option>
               </select>
             </div>
           </div>
@@ -622,11 +632,10 @@ function ProductionLotForm({ products, authUser, onClose, onSuccess, createLot }
 }
 
 // ===================================================
-// QC Test Form (Phase 3)
+// QC Test Form
 // ===================================================
 function QCTestForm({ lot, authUser, createTest, updateLot, onClose, onSuccess }) {
   const isQuickAddType = QUICK_ADD_TYPES.includes(lot.product_type_id);
-  
   const initialParams = isQuickAddType
     ? QUICK_PARAMS.map((p, idx) => ({ id: Date.now() + idx, parameter: p.parameter, specification: p.specification, test_result: '', status: 'pass' }))
     : [{ id: Date.now(), parameter: '', specification: '', test_result: '', status: 'pass' }];
@@ -647,7 +656,6 @@ function QCTestForm({ lot, authUser, createTest, updateLot, onClose, onSuccess }
     if (params.length === 0) { setError('Please add at least one test parameter'); return; }
     const invalidParams = params.filter(p => !p.parameter.trim() || !p.test_result.trim());
     if (invalidParams.length > 0) { setError('Please fill in Parameter and Test Result for all rows'); return; }
-
     setSubmitting(true);
     try {
       for (const param of params) {
@@ -659,7 +667,6 @@ function QCTestForm({ lot, authUser, createTest, updateLot, onClose, onSuccess }
         const { error: insertError } = await createTest(payload);
         if (insertError) throw new Error('Failed to save test: ' + insertError.message);
       }
-
       const hasFail = params.some(p => p.status === 'fail');
       const newStatus = hasFail ? 'archived' : 'released';
       const { error: updateError } = await updateLot(lot.id, {
@@ -668,11 +675,8 @@ function QCTestForm({ lot, authUser, createTest, updateLot, onClose, onSuccess }
       });
       if (updateError) throw new Error('Tests saved but failed to update lot status: ' + updateError.message);
       onSuccess();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSubmitting(false);
-    }
+    } catch (err) { setError(err.message); }
+    finally { setSubmitting(false); }
   };
 
   return (
@@ -704,9 +708,7 @@ function QCTestForm({ lot, authUser, createTest, updateLot, onClose, onSuccess }
           </div>
           <div className="form-group">
             <label>Test Parameters ({params.length})</label>
-            {params.length === 0 ? (
-              <div className="empty-params"><p>No parameters added.</p></div>
-            ) : (
+            {params.length === 0 ? <div className="empty-params"><p>No parameters added.</p></div> : (
               <div className="params-list">
                 {params.map((param, idx) => (
                   <div key={param.id} className="param-row">
@@ -716,8 +718,7 @@ function QCTestForm({ lot, authUser, createTest, updateLot, onClose, onSuccess }
                       <input type="text" placeholder="Specification" value={param.specification} onChange={(e) => updateParam(param.id, 'specification', e.target.value)} disabled={submitting} />
                       <input type="text" placeholder="Test result *" value={param.test_result} onChange={(e) => updateParam(param.id, 'test_result', e.target.value)} disabled={submitting} />
                       <select value={param.status} onChange={(e) => updateParam(param.id, 'status', e.target.value)} disabled={submitting} className={`status-select status-${param.status}`}>
-                        <option value="pass">✓ Pass</option>
-                        <option value="fail">✗ Fail</option>
+                        <option value="pass">✓ Pass</option><option value="fail">✗ Fail</option>
                       </select>
                     </div>
                     <button type="button" className="delete-row-btn" onClick={() => removeParam(param.id)} disabled={submitting}><Trash2 size={16} /></button>
@@ -749,12 +750,11 @@ function QCTestForm({ lot, authUser, createTest, updateLot, onClose, onSuccess }
 }
 
 // ===================================================
-// Stock Movement Form (Phase 4)
+// Stock Movement Form
 // ===================================================
 function StockMovementForm({ material, movementType, authUser, createMovement, updateStock, onClose, onSuccess }) {
   const isStockIn = movementType === 'in';
   const currentStock = Number(material.stock);
-
   const generateMovementNumber = () => {
     const now = new Date();
     const date = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -775,31 +775,22 @@ function StockMovementForm({ material, movementType, authUser, createMovement, u
     setError('');
     if (!formData.movement_number.trim()) { setError('Movement number is required'); return; }
     if (qty <= 0) { setError('Quantity must be greater than 0'); return; }
-
     setSubmitting(true);
     try {
       const movementPayload = {
-        movement_number: formData.movement_number,
-        raw_material_id: material.id,
-        movement_type: movementType,
-        quantity: qty,
-        balance_after: balanceAfter,
+        movement_number: formData.movement_number, raw_material_id: material.id,
+        movement_type: movementType, quantity: qty, balance_after: balanceAfter,
         reference_number: formData.reference_number.trim() || null,
-        notes: formData.notes.trim() || null,
-        recorded_by: authUser?.id || null,
+        notes: formData.notes.trim() || null, recorded_by: authUser?.id || null,
         recorded_by_name: authUser?.user_metadata?.full_name || authUser?.email?.split('@')[0] || null,
       };
       const { error: movementError } = await createMovement(movementPayload);
       if (movementError) throw new Error('Failed to record movement: ' + movementError.message);
-
       const { error: updateError } = await updateStock(material.id, balanceAfter);
       if (updateError) throw new Error('Movement saved but failed to update stock: ' + updateError.message);
       onSuccess();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSubmitting(false);
-    }
+    } catch (err) { setError(err.message); }
+    finally { setSubmitting(false); }
   };
 
   return (
@@ -865,20 +856,15 @@ function StockMovementForm({ material, movementType, authUser, createMovement, u
 }
 
 // ===================================================
-// Edit Lot Form (Phase 6 - NEW!)
+// Edit Lot Form
 // ===================================================
 function EditLotForm({ lot, products, updateLot, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
-    lot_number: lot.lot_number,
-    product_id: lot.product_id,
-    product_type_id: lot.product_type_id,
-    quantity: lot.quantity,
-    mfg_date: lot.mfg_date,
-    exp_date: lot.exp_date,
-    status: lot.status,
-    qc_notes: lot.qc_notes || '',
+    lot_number: lot.lot_number, product_id: lot.product_id,
+    product_type_id: lot.product_type_id, quantity: lot.quantity,
+    mfg_date: lot.mfg_date, exp_date: lot.exp_date,
+    status: lot.status, qc_notes: lot.qc_notes || '',
   });
-
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -890,31 +876,16 @@ function EditLotForm({ lot, products, updateLot, onClose, onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-
     if (!formData.lot_number.trim()) { setError('Lot number is required'); return; }
     if (formData.quantity <= 0) { setError('Quantity must be greater than 0'); return; }
-
     setSubmitting(true);
     try {
-      const payload = {
-        lot_number: formData.lot_number,
-        product_id: formData.product_id,
-        product_type_id: formData.product_type_id,
-        quantity: Number(formData.quantity),
-        mfg_date: formData.mfg_date,
-        exp_date: formData.exp_date,
-        status: formData.status,
-        qc_notes: formData.qc_notes || null,
-      };
-
+      const payload = { ...formData, quantity: Number(formData.quantity), qc_notes: formData.qc_notes || null };
       const { error: updateError } = await updateLot(lot.id, payload);
       if (updateError) setError('Failed to update: ' + updateError.message);
       else onSuccess();
-    } catch (err) {
-      setError('Error: ' + err.message);
-    } finally {
-      setSubmitting(false);
-    }
+    } catch (err) { setError('Error: ' + err.message); }
+    finally { setSubmitting(false); }
   };
 
   return (
@@ -933,9 +904,7 @@ function EditLotForm({ lot, products, updateLot, onClose, onSuccess }) {
             <div className="form-group">
               <label>Status</label>
               <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} disabled={submitting}>
-                <option value="draft">Draft</option>
-                <option value="released">Released</option>
-                <option value="archived">Archived</option>
+                <option value="draft">Draft</option><option value="released">Released</option><option value="archived">Archived</option>
               </select>
             </div>
           </div>
@@ -983,44 +952,33 @@ function EditLotForm({ lot, products, updateLot, onClose, onSuccess }) {
 }
 
 // ===================================================
-// Edit Material Form (Phase 6 - NEW!)
+// Edit Material Form
 // ===================================================
 function EditMaterialForm({ material, updateMaterial, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
-    name: material.name,
-    unit: material.unit,
-    pack_size: material.pack_size || 25,
-    reorder_point: material.reorder_point || 0,
+    name: material.name, unit: material.unit,
+    pack_size: material.pack_size || 25, reorder_point: material.reorder_point || 0,
     description: material.description || '',
   });
-
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-
     if (!formData.name.trim()) { setError('Name is required'); return; }
-
     setSubmitting(true);
     try {
       const payload = {
-        name: formData.name.trim(),
-        unit: formData.unit.trim() || 'kg',
-        pack_size: Number(formData.pack_size) || 25,
-        reorder_point: Number(formData.reorder_point) || 0,
+        name: formData.name.trim(), unit: formData.unit.trim() || 'kg',
+        pack_size: Number(formData.pack_size) || 25, reorder_point: Number(formData.reorder_point) || 0,
         description: formData.description.trim() || null,
       };
-
       const { error: updateError } = await updateMaterial(material.id, payload);
       if (updateError) setError('Failed to update: ' + updateError.message);
       else onSuccess();
-    } catch (err) {
-      setError('Error: ' + err.message);
-    } finally {
-      setSubmitting(false);
-    }
+    } catch (err) { setError('Error: ' + err.message); }
+    finally { setSubmitting(false); }
   };
 
   return (
@@ -1071,7 +1029,7 @@ function EditMaterialForm({ material, updateMaterial, onClose, onSuccess }) {
 }
 
 // ===================================================
-// Confirm Dialog (Phase 6 - NEW!)
+// Confirm Dialog
 // ===================================================
 function ConfirmDialog({ title, message, confirmText, cancelText, danger, onConfirm, onCancel }) {
   return (
